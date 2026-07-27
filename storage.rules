@@ -1,0 +1,27 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+        firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Every content folder (courses, testSeries, pdfs, videoLectures,
+    // notes, practiceSets, previousPapers, currentAffairs, categories)
+    // is publicly readable — students need to view/download purchased
+    // and free material — but only an admin can upload or delete files.
+    match /{folder}/{fileName} {
+      allow read: if true;
+      allow write: if isAdmin() &&
+        request.resource.size < 50 * 1024 * 1024 && // 50MB cap per file
+        request.resource.contentType.matches('application/pdf|image/.*|application/zip');
+    }
+  }
+}
